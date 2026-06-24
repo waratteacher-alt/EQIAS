@@ -165,7 +165,7 @@
         setAnswerKey(Array(numQ).fill(''));
         
         const newStudents = Array.from({ length: numS }).map((_, i) => ({
-          no: i + 1,
+          no: '', // เว้นช่องเลขที่ให้ว่างเปล่า เพื่อให้กรอกเองตอนหยิบข้อสอบมาตรวจ
           answers: Array(numQ).fill(''),
         }));
         
@@ -208,7 +208,7 @@
           if (nextR < -1) nextR = -1;
           if (nextR >= students.length) nextR = students.length - 1;
           
-          // ควบคุมขอบเขตของคอลัมน์ (Column): 0 คือ เลขที่, 1 ถึง M คือ ข้อสอบ
+          // ควบคุมขอบเขตของคอลัมน์ (Column): 0 คือ เลขที่ (editable), 1 ถึง M คือ ข้อสอบ
           if (nextC < 0) nextC = 0;
           if (nextC > config.numQuestions) nextC = config.numQuestions;
 
@@ -228,9 +228,10 @@
       };
 
       const exportCSV = () => {
-        const header = ["เลขที่", ...Array.from({length: config.numQuestions}, (_, i) => `ข้อ ${i+1}`)].join(",");
-        const keyRow = ["เฉลย", ...answerKey].join(",");
-        const studentRows = students.map(s => [s.no, ...s.answers].join(",")).join("\n");
+        // เพิ่ม "ลำดับ" เข้าไปใน header
+        const header = ["ลำดับ", "เลขที่", ...Array.from({length: config.numQuestions}, (_, i) => `ข้อ ${i+1}`)].join(",");
+        const keyRow = ["", "เฉลย", ...answerKey].join(",");
+        const studentRows = students.map((s, i) => [i + 1, s.no, ...s.answers].join(",")).join("\n");
         
         const csvContent = "\uFEFF" + header + "\n" + keyRow + "\n" + studentRows;
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -257,16 +258,19 @@
             if (rows.length < 2) throw new Error("ข้อมูลในไฟล์ไม่ครบถ้วน");
 
             const headers = rows[0].split(',');
-            const numQ = headers.length - 1;
+            // ตรวจสอบว่า CSV ที่นำเข้ามามีคอลัมน์ "ลำดับ" หรือไม่ (เพื่อรองรับไฟล์เวอร์ชันเก่า)
+            const hasOrderCol = headers[0].trim() === "ลำดับ" || headers[0].trim() === "ลำดับที่";
+            const offset = hasOrderCol ? 2 : 1; 
+            const numQ = headers.length - offset;
 
             const keyParts = rows[1].split(',');
-            const importedKey = keyParts.slice(1, 1 + numQ).map(v => v.trim());
+            const importedKey = keyParts.slice(offset, offset + numQ).map(v => v.trim());
 
             const importedStudents = [];
             for (let i = 2; i < rows.length; i++) {
               const parts = rows[i].split(',');
-              const no = parts[0].trim();
-              const ans = parts.slice(1, 1 + numQ).map(v => v.trim());
+              const no = hasOrderCol ? parts[1].trim() : parts[0].trim();
+              const ans = parts.slice(offset, offset + numQ).map(v => v.trim());
               const paddedAns = Array.from({length: numQ}).map((_, idx) => ans[idx] || '');
               importedStudents.push({ no, answers: paddedAns });
             }
@@ -303,7 +307,7 @@
 
       const analyzeData = () => {
         let totalScoreAll = 0;
-        const gradedStudents = students.map(student => {
+        const gradedStudents = students.map((student, index) => {
           let score = 0;
           const correctMap = student.answers.map((ans, idx) => {
             const isCorrect = String(ans).trim() === String(answerKey[idx]).trim() && String(ans).trim() !== '';
@@ -311,7 +315,8 @@
             return isCorrect;
           });
           totalScoreAll += score;
-          return { ...student, score, correctMap, percentage: (score / config.numQuestions) * 100 };
+          // เก็บ index ดั้งเดิมไว้สำหรับอ้างอิงตอนแสดงผลให้ตรงกับเลขลำดับ
+          return { ...student, originalIndex: index, score, correctMap, percentage: (score / config.numQuestions) * 100 };
         });
 
         const sortedStudents = [...gradedStudents].sort((a, b) => b.score - a.score);
@@ -484,6 +489,7 @@
               <table className="min-w-full border-collapse border border-slate-200 shadow-sm rounded-xl bg-white text-lg">
                 <thead className="sticky top-0 z-10 shadow-sm">
                   <tr>
+                    <th className="border border-slate-200 px-3 py-2 w-16 text-center font-bold bg-slate-100 text-slate-700">ลำดับ</th>
                     <th className="border border-slate-200 px-3 py-2 w-20 text-center font-bold bg-slate-100 text-slate-700">เลขที่</th>
                     {Array.from({ length: config.numQuestions }).map((_, i) => (
                       <th key={i} className="border border-slate-200 px-1 py-2 w-12 text-center font-bold bg-pastel-blue text-sky-800">
@@ -492,7 +498,7 @@
                     ))}
                   </tr>
                   <tr className="bg-emerald-50">
-                    <td className="border border-slate-200 px-4 py-2 text-right font-bold text-emerald-700 shadow-sm">
+                    <td colSpan={2} className="border border-slate-200 px-4 py-2 text-right font-bold text-emerald-700 shadow-sm">
                       เฉลย &rarr;
                     </td>
                     {answerKey.map((key, i) => (
@@ -513,6 +519,9 @@
                 <tbody>
                   {students.map((student, sIdx) => (
                     <tr key={sIdx} className="hover:bg-slate-50 transition-colors">
+                      <td className="border border-slate-200 px-3 py-2 text-center bg-slate-100 font-bold text-slate-500">
+                        {sIdx + 1}
+                      </td>
                       <td className="border border-slate-200 px-3 py-2 text-center bg-slate-50">
                         <input 
                           id={`cell-${sIdx}-0`} // ID สำหรับลูกศร r=sIdx, c=0
@@ -591,25 +600,27 @@
                   <table className="min-w-full text-center text-[15px] print:text-[14px]">
                     <thead className="bg-slate-100">
                       <tr>
-                        <th className="p-2 border-b border-r w-16">เลขที่</th>
+                        <th className="p-2 border-b border-r w-16">ลำดับ</th>
+                        <th className="p-2 border-b border-r w-20">เลขที่</th>
                         {Array.from({ length: config.numQuestions }).map((_, i) => (
                           <th key={i} className="p-1 border-b border-r font-semibold text-slate-600 bg-pastel-blue">ข้อ {i + 1}</th>
                         ))}
                       </tr>
                       <tr className="bg-emerald-50">
-                        <td className="p-2 border-b border-r font-bold text-emerald-700">เฉลย</td>
+                        <td colSpan={2} className="p-2 border-b border-r font-bold text-emerald-700 text-right">เฉลย</td>
                         {answerKey.map((key, i) => (
                           <td key={i} className="p-1 border-b border-r font-bold text-emerald-700">{key}</td>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {/* เรียงตามเลขที่ต้นฉบับ ไม่ใช่เรียงตามคะแนนในตารางนี้ */}
+                      {/* เรียงตามข้อมูลต้นฉบับใน students */}
                       {students.map((student, sIdx) => {
-                        // ค้นหานักเรียนใน gradedStudents เพื่อเอา correctMap
-                        const gradedS = results.gradedStudents.find(gs => gs.no === student.no);
+                        // ค้นหานักเรียนใน gradedStudents เพื่อเอา correctMap มาตรวจถูกผิด
+                        const gradedS = results.gradedStudents.find(gs => gs.originalIndex === sIdx);
                         return (
                           <tr key={sIdx} className="border-b">
+                            <td className="p-2 border-r text-center font-bold text-slate-500 bg-slate-100">{sIdx + 1}</td>
                             <td className="p-2 border-r font-medium bg-slate-50">{student.no}</td>
                             {student.answers.map((ans, qIdx) => {
                               const isCorrect = gradedS.correctMap[qIdx];

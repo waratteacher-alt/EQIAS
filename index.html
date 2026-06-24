@@ -66,15 +66,18 @@
       html { font-size: 10px !important; } /* ลดฟอนต์หน้าพิมพ์เหลือ 10 */
       body { background-color: #fff; }
       .no-print { display: none !important; }
-      .print-container { padding: 0 !important; max-width: 100% !important; box-shadow: none !important; border: none !important;}
+      .print-container { padding: 0 !important; max-width: 100% !important; box-shadow: none !important; border: none !important; overflow: visible !important;}
       .print-break-inside-avoid { page-break-inside: avoid; }
       .print-break-before { page-break-before: always; }
       .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; }
-      table { border-collapse: collapse !important; width: 100% !important; }
+      table { border-collapse: collapse !important; width: 100% !important; page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
       th, td { border: 1px solid #cbd5e1 !important; padding: 4px 8px !important; }
       /* ปรับให้การพิมพ์ออกเป็นขาวดำทางการมากขึ้น แต่ยังคงสีเน้นที่สำคัญไว้เล็กน้อย */
       .bg-pastel-blue { background-color: #f1f5f9 !important; }
       .text-sky-600 { color: #000 !important; font-weight: bold; }
+      /* ป้องกัน overflow ตัดเนื้อหาตารางเวลาพิมพ์ */
+      .overflow-x-auto, .overflow-hidden, .flex-1 { overflow: visible !important; }
     }
 
     /* Custom Scrollbar สำหรับตาราง */
@@ -747,10 +750,12 @@
 
       return (
         <div className="min-h-screen flex flex-col font-sans">
-          <div className="flex-grow p-4 md:p-8 no-print">
-            <div className="max-w-7xl mx-auto">
+          {/* เอา no-print ออกจากกรอบหลักตรงนี้ เพื่อให้หน้าตารางสามารถพิมพ์ออกได้ */}
+          <div className="flex-grow p-4 md:p-8 print:p-0">
+            <div className="max-w-7xl mx-auto print:max-w-full print:m-0">
               
-              <header className="mb-10 text-center animate-fade-in">
+              {/* ย้าย no-print มาไว้ที่ header ด้านบนสุด (เพราะเรามีหัวข้อกระดาษแยกต่างหากในหน้ารายงานแล้ว) */}
+              <header className="mb-10 text-center animate-fade-in no-print">
                 <h1 className="text-4xl font-bold text-slate-800 mb-2 drop-shadow-sm">ระบบตรวจและวิเคราะห์คุณภาพข้อสอบ</h1>
                 <p className="text-xl text-slate-500">Item Analysis & Test Grading System</p>
               </header>

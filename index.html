@@ -179,10 +179,52 @@
         setAnswerKey(newKey);
       };
 
+      const handleStudentInfoChange = (index, value) => {
+        const newStudents = [...students];
+        newStudents[index].no = value;
+        setStudents(newStudents);
+      };
+
       const handleStudentAnswerChange = (studentIndex, qIndex, value) => {
         const newStudents = [...students];
         newStudents[studentIndex].answers[qIndex] = value;
         setStudents(newStudents);
+      };
+
+      // ฟังก์ชันควบคุมการกดปุ่มลูกศร (Excel-like Navigation)
+      const handleKeyDown = (e, rIdx, cIdx) => {
+        const { key } = e;
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+          e.preventDefault(); // ป้องกันไม่ให้ cursor ขยับไปมาในช่อง
+          let nextR = rIdx;
+          let nextC = cIdx;
+
+          if (key === 'ArrowUp') nextR -= 1;
+          if (key === 'ArrowDown') nextR += 1;
+          if (key === 'ArrowLeft') nextC -= 1;
+          if (key === 'ArrowRight') nextC += 1;
+
+          // ควบคุมขอบเขตของแถว (Row): -1 คือ เฉลย, 0 ถึง N คือ นักเรียน
+          if (nextR < -1) nextR = -1;
+          if (nextR >= students.length) nextR = students.length - 1;
+          
+          // ควบคุมขอบเขตของคอลัมน์ (Column): 0 คือ เลขที่, 1 ถึง M คือ ข้อสอบ
+          if (nextC < 0) nextC = 0;
+          if (nextC > config.numQuestions) nextC = config.numQuestions;
+
+          // กรณีที่เลื่อนไปเจอช่องว่างมุมซ้ายบน (แถวเฉลย, คอลัมน์เลขที่ ซึ่งไม่มี input ให้กรอก)
+          if (nextR === -1 && nextC === 0) {
+              if (key === 'ArrowLeft') nextC = 1; // ชนขอบซ้ายให้อยู่ที่เดิม
+              if (key === 'ArrowUp') nextR = 0;   // ชนขอบบนให้อยู่ที่เดิม
+          }
+
+          const targetId = `cell-${nextR}-${nextC}`;
+          const targetElement = document.getElementById(targetId);
+          if (targetElement) {
+            targetElement.focus();
+            targetElement.select(); // คลุมดำตัวหนังสือเดิมให้พิมพ์ทับได้ง่าย
+          }
+        }
       };
 
       const exportCSV = () => {
@@ -456,9 +498,11 @@
                     {answerKey.map((key, i) => (
                       <td key={i} className="border border-slate-200 p-1 text-center">
                         <input 
+                          id={`cell--1-${i + 1}`} // ID สำหรับลูกศร r=-1, c=1..M
                           type="text" 
                           value={key}
                           onChange={(e) => handleKeyChange(i, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, -1, i + 1)}
                           className="w-full text-center bg-white border border-emerald-300 rounded font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-shadow"
                           maxLength={1}
                         />
@@ -469,13 +513,24 @@
                 <tbody>
                   {students.map((student, sIdx) => (
                     <tr key={sIdx} className="hover:bg-slate-50 transition-colors">
-                      <td className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700 bg-slate-50">{student.no}</td>
+                      <td className="border border-slate-200 px-3 py-2 text-center bg-slate-50">
+                        <input 
+                          id={`cell-${sIdx}-0`} // ID สำหรับลูกศร r=sIdx, c=0
+                          type="text" 
+                          value={student.no}
+                          onChange={(e) => handleStudentInfoChange(sIdx, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, sIdx, 0)}
+                          className="w-full text-center bg-transparent focus:bg-white focus:ring-2 focus:ring-sky-500 rounded font-medium text-slate-700 outline-none transition-shadow"
+                        />
+                      </td>
                       {student.answers.map((ans, qIdx) => (
                         <td key={qIdx} className="border border-slate-200 p-1 text-center">
                           <input 
+                            id={`cell-${sIdx}-${qIdx + 1}`} // ID สำหรับลูกศร r=sIdx, c=1..M
                             type="text" 
                             value={ans}
                             onChange={(e) => handleStudentAnswerChange(sIdx, qIdx, e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, sIdx, qIdx + 1)}
                             className="w-full text-center bg-transparent focus:bg-white focus:ring-2 focus:ring-sky-500 rounded font-medium text-slate-700 outline-none transition-shadow"
                             maxLength={1}
                           />
